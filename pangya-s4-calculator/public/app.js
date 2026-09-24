@@ -176,6 +176,52 @@
     loadImageBlob(blob, 'Imagem colada com Ctrl+V');
   });
 
+  function buildHudOcrCanvas() {
+    // Specialized mask for the S4 HUD. Generic OCR struggles with PangYa's
+    // outlined fonts, while the important values use distinctive colors:
+    // red = pin distance, cyan = wind speed.
+    const source = ctx.getImageData(0,0,canvas.width,canvas.height);
+    const out = document.createElement('canvas');
+    const scale = 6;
+    const blockW = Math.max(320, Math.round(canvas.width * 0.24 * scale));
+    const blockH = Math.max(120, Math.round(canvas.height * 0.09 * scale));
+    out.width = blockW;
+    out.height = blockH * 2 + 70;
+    const o = out.getContext('2d', {willReadFrequently:true});
+    o.fillStyle='white'; o.fillRect(0,0,out.width,out.height);
+
+    function paintRegion(rx0,ry0,rx1,ry1,destY,kind) {
+      const x0=Math.floor(canvas.width*rx0), y0=Math.floor(canvas.height*ry0);
+      const x1=Math.ceil(canvas.width*rx1), y1=Math.ceil(canvas.height*ry1);
+      const rw=Math.max(1,x1-x0), rh=Math.max(1,y1-y0);
+      const tmp=document.createElement('canvas');
+      tmp.width=rw; tmp.height=rh;
+      const t=tmp.getContext('2d');
+      const id=t.createImageData(rw,rh);
+      for(let yy=0;yy<rh;yy++){
+        for(let xx=0;xx<rw;xx++){
+          const si=((y0+yy)*canvas.width+(x0+xx))*4;
+          const R=source.data[si], G=source.data[si+1], B=source.data[si+2];
+          let hit=false;
+          if(kind==='red') hit = R>115 && R>G*1.35 && R>B*1.35;
+          if(kind==='cyan') hit = B>115 && G>70 && B>R+55 && G>R+20;
+          const di=(yy*rw+xx)*4;
+          const v=hit?0:255;
+          id.data[di]=id.data[di+1]=id.data[di+2]=v; id.data[di+3]=255;
+        }
+      }
+      t.putImageData(id,0,0);
+      o.imageSmoothingEnabled=false;
+      o.drawImage(tmp,0,0,rw,rh,20,destY,Math.round(rw*scale),Math.round(rh*scale));
+    }
+
+    // 228y-style pin distance at top/center.
+    paintRegion(.43,.075,.57,.155,15,'red');
+    // 6m-style wind badge in the lower-right.
+    paintRegion(.91,.89,.995,.995,blockH+45,'cyan');
+    return out;
+  }
+
   function preprocessForOCR() {
     const temp = document.createElement('canvas');
     const scale = canvas.width < 1400 ? 2 : 1;
@@ -269,41 +315,47 @@
     }
     ocrBtn.disabled = true;
     try {
-      setStatus('Lendo o print… isso pode levar alguns segundos.');
-      const source = preprocessForOCR();
+      setStatus('Lendo distância e vento do HUD…');
+      const source = buildHudOcrCanvas();
       const result = await Tesseract.recognize(source, 'eng', {
         logger: m => {
           if (m.status === 'recognizing text' && Number.isFinite(m.progress)) {
-            setStatus('Lendo o print… ' + Math.round(m.progress*100) + '%');
+            setStatus('Lendo o HUD… ' + Math.round(m.progress*100) + '%');
           }
         }
       });
-      ocrText.textContent = result.data.text || '(nenhum texto detectado)';
-      const d = parseOCR(result.data);
-      const applied = [];
-      for (const key of ['distance','height','wind','ground']) {
-        if (d[key] != null && $(key)) {
-          $(key).value = d[key];
-          applied.push(key);
-        }
+      const text = result.data.text || '';
+      ocrText.textContent = text || '(nenhum texto detectado)';
+
+      const applied=[];
+      const yd=text.match(/(\d{2,3}(?:[.,]\d+)?)\s*y/i);
+      if(yd){
+        $('distance').value=yd[1].replace(',','.');
+        applied.push('distância');
       }
-      if (d.club != null) {
-        $('club').value = d.club;
-        applied.push('taco');
+
+      const wm=text.match(/(?:^|\s)(\d(?:[.,]\d+)?)\s*m(?:\s|$)/im);
+      if(wm){
+        $('wind').value=wm[1].replace(',','.');
+        applied.push('vento');
       }
-      if (d.shot != null) {
-        $('shot').value = d.shot;
-        if (d.shot === '1' && Number($('spin').value) === 11) $('spin').value = '7';
-        applied.push('tipo de tacada');
+
+      const autoAngle=detectWindAngleFromPixels();
+      if(autoAngle && autoAngle.confidence>=0.12){
+        $('degree').value=autoAngle.degree.toFixed(1);
+        applied.push('ângulo');
       }
-      if (applied.length) {
-        setStatus('Leitura concluída. Preenchi: ' + applied.join(', ') + '. Revise os números e meça o ângulo da seta.', 'good');
+
+      // Height and lie percentage use outlined/overlapping artwork in S4.
+      // Keep their current values rather than inserting an unreliable guess.
+      if(applied.length){
+        setStatus('Leitura concluída: ' + applied.join(', ') + '. Altura e terreno devem ser conferidos antes de calcular.', 'good');
       } else {
-        setStatus('O OCR rodou, mas não encontrei campos confiáveis. Você pode preencher manualmente e usar o print para medir o ângulo.', 'warn');
+        setStatus('Não consegui ler números confiáveis deste print. Preencha manualmente ou use outro print sem menus sobre o HUD.', 'warn');
       }
     } catch (err) {
       console.error(err);
-      setStatus('Falha ao analisar o print. Tente outro print em PNG/JPG ou preencha manualmente.', 'warn');
+      setStatus('Falha ao analisar o print. Você ainda pode preencher os campos manualmente.', 'warn');
     } finally {
       ocrBtn.disabled = false;
     }
