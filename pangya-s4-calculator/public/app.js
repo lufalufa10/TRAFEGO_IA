@@ -37,6 +37,74 @@
     drawAngleOverlay();
   }
 
+  function detectWindAngleFromPixels() {
+    if (!originalImage || !canvas.width || !canvas.height) return null;
+
+    // Season 4 HUD: wind dial is anchored in the lower-right corner.
+    // Restrict analysis to the inner dial so ocean/sky pixels cannot dominate.
+    const cx = canvas.width * 0.94;
+    const cy = canvas.height * 0.905;
+    const radius = Math.min(canvas.width, canvas.height) * 0.062;
+    const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const pts = [];
+    const r2 = radius * radius;
+
+    for (let y=Math.max(0,Math.floor(cy-radius)); y<=Math.min(canvas.height-1,Math.ceil(cy+radius)); y++) {
+      for (let x=Math.max(0,Math.floor(cx-radius)); x<=Math.min(canvas.width-1,Math.ceil(cx+radius)); x++) {
+        const dx=x-cx, dy=y-cy;
+        if (dx*dx+dy*dy > r2) continue;
+        const i=(y*canvas.width+x)*4;
+        const R=image.data[i], G=image.data[i+1], B=image.data[i+2];
+        // Blue/cyan arrow in the S4 wind dial.
+        if (B > 125 && G > 70 && B > R + 70 && G > R + 25) pts.push([x,y]);
+      }
+    }
+
+    if (pts.length < 120) return null;
+
+    let mx=0,my=0;
+    for (const p of pts){mx+=p[0];my+=p[1];}
+    mx/=pts.length; my/=pts.length;
+
+    let sxx=0,syy=0,sxy=0;
+    for (const p of pts){
+      const x=p[0]-mx,y=p[1]-my;
+      sxx+=x*x; syy+=y*y; sxy+=x*y;
+    }
+    const tr=sxx+syy;
+    const disc=Math.sqrt(Math.max(0,(sxx-syy)*(sxx-syy)+4*sxy*sxy));
+    const lambda=(tr+disc)/2;
+    let ex,ey;
+    if (Math.abs(sxy)>1e-9){ex=lambda-syy;ey=sxy;}
+    else if (sxx>=syy){ex=1;ey=0;} else {ex=0;ey=1;}
+    const el=Math.hypot(ex,ey)||1; ex/=el; ey/=el;
+
+    const projected=pts.map(p=>{
+      const dx=p[0]-mx,dy=p[1]-my;
+      return {p:dx*ex+dy*ey,q:-dx*ey+dy*ex};
+    });
+    let pmin=Infinity,pmax=-Infinity;
+    for(const v of projected){if(v.p<pmin)pmin=v.p;if(v.p>pmax)pmax=v.p;}
+    const span=pmax-pmin;
+    if(span<18) return null;
+
+    // Arrowhead tapers at its tip. Compare the cross-section width close to
+    // each extreme of the principal axis; the narrower extreme is the tip.
+    function endWidth(isMax){
+      const a=isMax ? pmax-span*.14 : pmin;
+      const b=isMax ? pmax : pmin+span*.14;
+      const qs=projected.filter(v=>v.p>=a&&v.p<=b).map(v=>v.q);
+      if(qs.length<8) return Infinity;
+      return Math.max(...qs)-Math.min(...qs);
+    }
+    const wMin=endWidth(false), wMax=endWidth(true);
+    const tipSign = wMax < wMin ? 1 : -1;
+    const vx=ex*tipSign, vy=ey*tipSign;
+    const degree=normalizeAngle(Math.atan2(vx,-vy)*180/Math.PI);
+    const confidence=Math.min(1,Math.abs(wMax-wMin)/Math.max(1,Math.max(wMax,wMin)));
+    return {degree,confidence,points:pts.length};
+  }
+
   function drawAngleOverlay() {
     if (!anglePoints.length) return;
     ctx.save();
@@ -70,7 +138,17 @@
       ocrBtn.disabled = false;
       angleBtn.disabled = false;
       invertBtn.disabled = false;
-      setStatus(sourceLabel + ' carregado. ' + (sourceLabel.includes('Ctrl+V') ? 'Lendo os números automaticamente…' : 'Clique em “Ler números do print” ou meça o ângulo da seta.'), 'good');
+
+      const autoAngle = detectWindAngleFromPixels();
+      if (autoAngle && autoAngle.confidence >= 0.12) {
+        $('degree').value = autoAngle.degree.toFixed(1);
+      }
+
+      const angleMsg = autoAngle && autoAngle.confidence >= 0.12
+        ? ' Ângulo do vento detectado: ' + autoAngle.degree.toFixed(1) + '°.'
+        : ' Não consegui confirmar o ângulo automaticamente; use “Medir ângulo da seta”.';
+
+      setStatus(sourceLabel + ' carregado.' + angleMsg + (sourceLabel.includes('Ctrl+V') ? ' Lendo os números automaticamente…' : ''), 'good');
       URL.revokeObjectURL(url);
       if (sourceLabel.includes('Ctrl+V')) setTimeout(() => runOCR(), 50);
     };
