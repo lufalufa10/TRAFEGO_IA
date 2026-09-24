@@ -57,23 +57,44 @@
     ctx.restore();
   }
 
-  input.addEventListener('change', () => {
-    const file = input.files && input.files[0];
-    if (!file) return;
-    const url = URL.createObjectURL(file);
+  function loadImageBlob(blob, sourceLabel='print') {
+    if (!blob || !/^image\//i.test(blob.type || '')) return false;
+    const url = URL.createObjectURL(blob);
     const img = new Image();
     img.onload = () => {
       originalImage = img;
+      anglePoints = [];
+      clickMode = false;
       drawImage();
       wrap.classList.remove('hidden');
       ocrBtn.disabled = false;
       angleBtn.disabled = false;
       invertBtn.disabled = false;
-      setStatus('Print carregado. Você pode ler os números por OCR e medir o ângulo da seta.', 'good');
+      setStatus(sourceLabel + ' carregado. Clique em “Ler números do print” ou meça o ângulo da seta.', 'good');
       URL.revokeObjectURL(url);
     };
-    img.onerror = () => setStatus('Não consegui abrir essa imagem.', 'warn');
+    img.onerror = () => {
+      setStatus('Não consegui abrir essa imagem.', 'warn');
+      URL.revokeObjectURL(url);
+    };
     img.src = url;
+    return true;
+  }
+
+  input.addEventListener('change', () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    loadImageBlob(file, 'Print');
+  });
+
+  document.addEventListener('paste', (ev) => {
+    const items = Array.from(ev.clipboardData?.items || []);
+    const imageItem = items.find(item => /^image\//i.test(item.type || ''));
+    if (!imageItem) return;
+    const blob = imageItem.getAsFile();
+    if (!blob) return;
+    ev.preventDefault();
+    loadImageBlob(blob, 'Imagem colada com Ctrl+V');
   });
 
   function preprocessForOCR() {
