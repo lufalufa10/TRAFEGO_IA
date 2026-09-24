@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#071426">
+  <title>PangYa S4 Calculator — HUD V4</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div>
+        <div class="eyebrow">PANGYA · SEASON 4</div>
+        <h1>Shot Calculator</h1>
+        <p>Perfil base calibrado para <strong>1W 270y · 2W 250y · 3W 230y</strong>. Motor físico PangYaC/Acrisio.</p>
+      </div>
+      <div class="badge">S4 · BETA</div>
+    </header>
+
+    <section class="panel screenshot-panel">
+      <div class="section-title">
+        <div>
+          <h2>Reconhecer print do jogo</h2>
+          <p><strong>CTRL + V:</strong> copie o print do PangYa e cole em qualquer lugar desta página. A V4 usa as posições e cores reais do HUD S4 para distância, altura, vento, ângulo e terreno. O OCR é usado apenas como apoio por caractere.</p>
+        </div>
+      </div>
+
+      <div class="upload-row">
+        <label class="file-btn">
+          <input id="screenshotInput" type="file" accept="image/png,image/jpeg,image/webp">
+          Escolher print
+        </label>
+        <button id="ocrBtn" type="button" disabled>Ler números do print</button>
+        <button id="angleBtn" type="button" disabled>Medir ângulo da seta</button>
+        <button id="invertAngleBtn" type="button" disabled>Inverter 180°</button>
+      </div>
+
+      <div id="ocrStatus" class="status">Copie um print do PangYa e pressione CTRL + V nesta página — ou use “Escolher print”.</div>
+      <div id="canvasWrap" class="canvas-wrap hidden">
+        <canvas id="shotCanvas"></canvas>
+      </div>
+      <details class="ocr-details">
+        <summary>Texto detectado pelo OCR</summary>
+        <pre id="ocrText">—</pre>
+      </details>
+    </section>
+
+    <section class="panel">
+      <div class="section-title">
+        <div>
+          <h2>Dados da tacada</h2>
+          <p>Os campos encontrados no print são preenchidos automaticamente.</p>
+        </div>
+        <button id="calculateBtn" class="primary" type="button">CALCULAR TACADA</button>
+      </div>
+
+      <div class="grid">
+        <label>Taco
+          <select id="club">
+            <option value="0">1W · 270y</option>
+            <option value="1">2W · 250y</option>
+            <option value="2">3W · 230y</option>
+          </select>
+        </label>
+        <label>Tipo de tacada
+          <select id="shot">
+            <option value="1" selected>Tomahawk</option>
+            <option value="0">Dunk / normal</option>
+            <option value="2">Spike</option>
+            <option value="3">Cobra</option>
+          </select>
+        </label>
+        <label>Power Shot
+          <select id="power_shot">
+            <option value="0" selected>Sem Power Shot</option>
+            <option value="1">+10y</option>
+            <option value="2">+20y</option>
+            <option value="3">+15y item</option>
+          </select>
+        </label>
+        <label>Distância (y)
+          <input id="distance" inputmode="decimal" value="230">
+        </label>
+
+        <label>Altura (m)
+          <input id="height" inputmode="decimal" value="0">
+        </label>
+        <label>Vento
+          <input id="wind" inputmode="decimal" value="1">
+        </label>
+        <label>Ângulo do vento (°)
+          <input id="degree" inputmode="decimal" value="90">
+          <small>0° longitudinal · 90° lateral · 180° longitudinal oposto</small>
+        </label>
+        <label>Terreno (%)
+          <input id="ground" inputmode="decimal" value="100">
+        </label>
+
+        <label>Spin
+          <input id="spin" inputmode="decimal" value="7">
+        </label>
+        <label>Curva
+          <input id="curve" inputmode="decimal" value="0">
+        </label>
+        <label>Slope / quebra
+          <input id="slope_break" inputmode="decimal" value="0">
+        </label>
+      </div>
+
+      <div class="result-box">
+        <div class="result-label">RESULTADO</div>
+        <font id="result">Preencha os dados e clique em calcular.</font>
+      </div>
+    </section>
+
+    <section class="panel advanced">
+      <details>
+        <summary>Configuração avançada do perfil</summary>
+        <p class="muted">O perfil padrão abaixo gera 270y no 1W, 250y no 2W e 230y no 3W sem Power Shot.</p>
+        <div class="grid compact">
+          <label>Power stat<input id="power" value="31"></label>
+          <label>Ring / aux power<input id="auxpart_pwr" value="0"></label>
+          <label>Card power<input id="card_pwr" value="4"></label>
+          <label>Mascot power<input id="mascot_pwr" value="4"></label>
+          <label>PS card power<input id="card_ps_pwr" value="0"></label>
+          <label>Largura da tela<input id="rel-width" value="1280"></label>
+          <label>Altura da tela<input id="rel-height" value="960"></label>
+          <label>Smart PB limit<input id="smart-dev-limit" value="0"></label>
+          <label class="check"><input id="auto-fit" type="checkbox" checked> Auto fit da resolução</label>
+        </div>
+      </details>
+    </section>
+
+    <section class="panel help">
+      <h2>Como medir o ângulo pelo print</h2>
+      <ol>
+        <li>Envie o print.</li>
+        <li>Clique em <strong>Medir ângulo da seta</strong>.</li>
+        <li>No print, clique no <strong>centro do indicador de vento</strong>.</li>
+        <li>Depois clique na <strong>ponta da seta</strong>.</li>
+      </ol>
+      <p>Se o sentido ficar ao contrário do jogo, use <strong>Inverter 180°</strong>. Essa calibração evita depender de OCR para interpretar uma seta gráfica.</p>
+    </section>
+
+    <footer>
+      Protótipo independente para PangYa Season 4. Motor de cálculo baseado no projeto open-source PangYaC/Acrisio.
+    </footer>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="./engine-v3.js?rev=75def31"></script>
+  <script src="./app-ocr-v4.js?rev=c88ce0d"></script>
+</body>
+</html>
