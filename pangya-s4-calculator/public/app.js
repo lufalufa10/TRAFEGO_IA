@@ -53,6 +53,8 @@
       for (let x=Math.max(0,Math.floor(cx-radius)); x<=Math.min(canvas.width-1,Math.ceil(cx+radius)); x++) {
         const dx=x-cx, dy=y-cy;
         if (dx*dx+dy*dy > r2) continue;
+        // Ignore the cyan "Xm" speed badge that overlaps the wind dial.
+        if (x > cx + radius * 0.18 && y > cy + radius * 0.22) continue;
         const i=(y*canvas.width+x)*4;
         const R=image.data[i], G=image.data[i+1], B=image.data[i+2];
         // Blue/cyan arrow in the S4 wind dial.
@@ -88,20 +90,18 @@
     const span=pmax-pmin;
     if(span<18) return null;
 
-    // Arrowhead tapers at its tip. Compare the cross-section width close to
-    // each extreme of the principal axis; the narrower extreme is the tip.
-    function endWidth(isMax){
-      const a=isMax ? pmax-span*.14 : pmin;
-      const b=isMax ? pmax : pmin+span*.14;
-      const qs=projected.filter(v=>v.p>=a&&v.p<=b).map(v=>v.q);
-      if(qs.length<8) return Infinity;
-      return Math.max(...qs)-Math.min(...qs);
-    }
-    const wMin=endWidth(false), wMax=endWidth(true);
-    const tipSign = wMax < wMin ? 1 : -1;
+    // The tail is a rectangle while the arrow tip converges to only a few
+    // pixels. Count pixels in the outermost 5% of both ends to disambiguate
+    // the direction of the PCA axis.
+    const edge = span * 0.05;
+    const countMin = projected.filter(v=>v.p>=pmin && v.p<=pmin+edge).length;
+    const countMax = projected.filter(v=>v.p>=pmax-edge && v.p<=pmax).length;
+    if (Math.min(countMin,countMax) < 2) return null;
+
+    const tipSign = countMax < countMin ? 1 : -1;
     const vx=ex*tipSign, vy=ey*tipSign;
     const degree=normalizeAngle(Math.atan2(vx,-vy)*180/Math.PI);
-    const confidence=Math.min(1,Math.abs(wMax-wMin)/Math.max(1,Math.max(wMax,wMin)));
+    const confidence=Math.min(1,Math.abs(countMax-countMin)/Math.max(1,Math.max(countMax,countMin)));
     return {degree,confidence,points:pts.length};
   }
 
