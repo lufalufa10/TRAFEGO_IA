@@ -1210,7 +1210,10 @@ function calc(el) {
     if (f[index_f].power != -1) {
 
         result.color = 'White';
-        result.innerHTML = `${(f[index_f].power * 100).toFixed(1)}%, ${(f[index_f].power_range * f[index_f].power).toFixed(1)}y, ${(desvioByDegree(f[index_f].desvio, distance) / 0.2167).toFixed(2)}pb AIM(${(f[index_f].desvio / (0.2167 * -1)/4).toFixed(2)}pb), Smart(${smartDesvio(f[index_f].smartData)})`;
+        const desvioTiles = desvioByDegree(f[index_f].desvio, distance);
+        const direcaoTiles = Math.abs(desvioTiles) < 0.01 ? 'CENTRO' : (desvioTiles > 0 ? 'ESQUERDA' : 'DIREITA');
+        const setaTiles = direcaoTiles === 'ESQUERDA' ? '←' : (direcaoTiles === 'DIREITA' ? '→' : '•');
+        result.innerHTML = `FORÇA: ${(f[index_f].power * 100).toFixed(1)}% &nbsp; | &nbsp; MIRA: ${setaTiles} ${Math.abs(desvioTiles).toFixed(2)} quadradinhos (${direcaoTiles}) &nbsp; | &nbsp; ${(f[index_f].power_range * f[index_f].power).toFixed(1)}y`;
 		return result.innerHTML;
 		
     }else {
