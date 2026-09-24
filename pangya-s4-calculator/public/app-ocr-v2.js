@@ -138,7 +138,7 @@
       $('height').value = '';
       $('wind').value = '';
       $('degree').value = '';
-      $('ground').value = '100';
+      $('ground').value = '';
       drawImage();
       wrap.classList.remove('hidden');
       ocrBtn.disabled = false;
@@ -442,7 +442,9 @@
       // Height is intentionally NOT auto-filled yet: the outlined S4 font
       // produced false values such as 968. A blank field is safer than a lie.
       missing.push('altura');
+      missing.push('terreno');
       $('height').value='';
+      $('ground').value='';
 
       if(applied.length){
         setStatus(
