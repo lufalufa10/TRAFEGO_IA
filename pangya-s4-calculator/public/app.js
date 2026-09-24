@@ -145,14 +145,29 @@
       .sort((a,b) => b.y-a.y);
     if (pc[0]) detected.ground = pc[0].val;
 
-    // Wind speed: single digit near the wind indicator, usually right/lower HUD.
+    // Wind speed: in S4 the indicator lives near the lower-right corner.
+    // Prefer values carrying the "m" suffix inside the expected HUD region.
+    const lowerRightM = words.map(w => ({...w, val:n(w.text)}))
+      .filter(w => /m/i.test(w.text) && w.val !== null && w.val >= 0 && w.val <= 9 && w.x > .72 && w.y > .55)
+      .sort((a,b) => (Math.abs(a.x-.94)+Math.abs(a.y-.88)) - (Math.abs(b.x-.94)+Math.abs(b.y-.88)));
     const windCandidates = words.map(w => ({...w, val:n(w.text)}))
-      .filter(w => w.val !== null && Number.isInteger(w.val) && w.val >= 0 && w.val <= 9 && w.x > .58 && w.y > .45)
-      .sort((a,b) => ((1-a.x)+(1-a.y)) - ((1-b.x)+(1-b.y)));
-    if (windCandidates[0]) detected.wind = windCandidates[0].val;
+      .filter(w => w.val !== null && Number.isInteger(w.val) && w.val >= 0 && w.val <= 9 && w.x > .72 && w.y > .55)
+      .sort((a,b) => (Math.abs(a.x-.94)+Math.abs(a.y-.88)) - (Math.abs(b.x-.94)+Math.abs(b.y-.88)));
+    if (lowerRightM[0]) detected.wind = lowerRightM[0].val;
+    else if (windCandidates[0]) detected.wind = windCandidates[0].val;
+
+    // Club / special shot text can also be present in the lower HUD.
+    const text = data.text || '';
+    const upperText = text.toUpperCase();
+    if (/\b1\s*W\b/.test(upperText)) detected.club = '0';
+    else if (/\b2\s*W\b/.test(upperText)) detected.club = '1';
+    else if (/\b3\s*W\b/.test(upperText)) detected.club = '2';
+
+    if (/TOMA(?:HAWK)?/.test(upperText)) detected.shot = '1';
+    else if (/SPIKE/.test(upperText)) detected.shot = '2';
+    else if (/COBRA/.test(upperText)) detected.shot = '3';
 
     // Fallback patterns from the full text.
-    const text = data.text || '';
     if (detected.distance == null) {
       const m = text.match(/(?:^|\s)(\d{2,3}(?:[.,]\d+)?)\s*y\b/i);
       if (m) detected.distance = n(m[1]);
@@ -193,6 +208,15 @@
           $(key).value = d[key];
           applied.push(key);
         }
+      }
+      if (d.club != null) {
+        $('club').value = d.club;
+        applied.push('taco');
+      }
+      if (d.shot != null) {
+        $('shot').value = d.shot;
+        if (d.shot === '1' && Number($('spin').value) === 11) $('spin').value = '7';
+        applied.push('tipo de tacada');
       }
       if (applied.length) {
         setStatus('Leitura concluída. Preenchi: ' + applied.join(', ') + '. Revise os números e meça o ângulo da seta.', 'good');
