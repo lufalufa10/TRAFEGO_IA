@@ -1,5 +1,10 @@
 (() => {
   const $ = (id) => document.getElementById(id);
+  // Primary calibration mode: Season 4 Tomahawk.
+  setTimeout(() => {
+    if ($('shot')) $('shot').value='1';
+    if ($('spin')) $('spin').value='7';
+  }, 0);
   const input = $('screenshotInput');
   const canvas = $('shotCanvas');
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -139,6 +144,10 @@
       $('wind').value = '';
       $('degree').value = '';
       $('ground').value = '';
+      $('shot').value = '1';
+      $('spin').value = '7';
+      $('curve').value = '0';
+      $('slope_break').value = '0';
       drawImage();
       wrap.classList.remove('hidden');
       ocrBtn.disabled = false;
@@ -400,15 +409,21 @@
       const distanceCrop = cropHud(.472,.100,.532,.134,'otsu',10);
       const windCrop     = cropHud(.948,.918,1.000,.988,'gray',10);
       const maxPowerCrop = cropHud(.565,.888,.652,.952,'otsu',10);
+      const heightCrop   = cropHud(.458,.035,.550,.090,'gray',12);
+      const terrainCrop  = cropHud(.030,.845,.142,.955,'gray',10);
 
       const distanceRead = await recognizeHudCrop(worker,distanceCrop,'0123456789yY');
       const windRead     = await recognizeHudCrop(worker,windCrop,'0123456789mM');
       const powerRead    = await recognizeHudCrop(worker,maxPowerCrop,'0123456789yY');
+      const heightRead   = await recognizeHudCrop(worker,heightCrop,'-+0123456789.,mM');
+      const terrainRead  = await recognizeHudCrop(worker,terrainCrop,'0123456789%');
 
       const debug=[
         'Distância: '+distanceRead.text+' ('+distanceRead.confidence.toFixed(0)+'%)',
         'Vento: '+windRead.text+' ('+windRead.confidence.toFixed(0)+'%)',
-        'Potência máx.: '+powerRead.text+' ('+powerRead.confidence.toFixed(0)+'%)'
+        'Potência máx.: '+powerRead.text+' ('+powerRead.confidence.toFixed(0)+'%)',
+        'Altura: '+heightRead.text+' ('+heightRead.confidence.toFixed(0)+'%)',
+        'Terreno: '+terrainRead.text+' ('+terrainRead.confidence.toFixed(0)+'%)'
       ];
       ocrText.textContent=debug.join('\n');
 
@@ -439,12 +454,33 @@
         applied.push('ângulo '+autoAngle.degree.toFixed(1)+'°');
       } else missing.push('ângulo');
 
-      // Height is intentionally NOT auto-filled yet: the outlined S4 font
-      // produced false values such as 968. A blank field is safer than a lie.
-      missing.push('altura');
-      missing.push('terreno');
-      $('height').value='';
-      $('ground').value='';
+      // Height: preserve the sign and decimal separator.
+      // S4 commonly renders values such as -3,65m.
+      const hm=heightRead.text.replace(/\s+/g,'').match(/([+-]?\d{1,2}(?:[.,]\d{1,2})?)/);
+      let hv=hm ? Number(hm[1].replace(',','.')) : NaN;
+      if(Number.isFinite(hv) && hv>=-100 && hv<=100 && heightRead.confidence>=18){
+        $('height').value=String(hv).replace('.',',');
+        applied.push('altura '+String(hv).replace('.',',')+'m');
+      } else {
+        $('height').value='';
+        missing.push('altura');
+      }
+
+      // Terrain / lie percentage around the ball HUD. Accept only plausible lies.
+      const tm=terrainRead.text.match(/(100|9[0-9]|8[0-9]|7[0-9]|6[0-9])/);
+      const tv=tm ? Number(tm[1]) : NaN;
+      if(Number.isFinite(tv) && tv>=60 && tv<=100 && terrainRead.confidence>=15){
+        $('ground').value=String(tv);
+        applied.push('terreno '+tv+'%');
+      } else {
+        // Most tee/green lies are 100%, but do not invent the value.
+        $('ground').value='';
+        missing.push('terreno');
+      }
+
+      // This calculator is being calibrated for Tomahawk first.
+      $('shot').value='1';
+      $('spin').value='7';
 
       if(applied.length){
         setStatus(
