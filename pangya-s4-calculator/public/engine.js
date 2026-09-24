@@ -1060,10 +1060,15 @@ const SHOT_TYPE = {
 
 function checkValidInput(value) {
         
-    if (value == '' || isNaN(value))
+    if (value === undefined || value === null)
         return 0.0;
 
-    return Number(value);
+    let normalized = String(value).trim().replace(',', '.');
+
+    if (normalized === '' || isNaN(normalized))
+        return 0.0;
+
+    return Number(normalized);
 }
 
 function checkValidInputSlope(value) {
