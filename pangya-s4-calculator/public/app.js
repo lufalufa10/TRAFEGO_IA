@@ -70,8 +70,9 @@
       ocrBtn.disabled = false;
       angleBtn.disabled = false;
       invertBtn.disabled = false;
-      setStatus(sourceLabel + ' carregado. Clique em “Ler números do print” ou meça o ângulo da seta.', 'good');
+      setStatus(sourceLabel + ' carregado. ' + (sourceLabel.includes('Ctrl+V') ? 'Lendo os números automaticamente…' : 'Clique em “Ler números do print” ou meça o ângulo da seta.'), 'good');
       URL.revokeObjectURL(url);
+      if (sourceLabel.includes('Ctrl+V')) setTimeout(() => runOCR(), 50);
     };
     img.onerror = () => {
       setStatus('Não consegui abrir essa imagem.', 'warn');
@@ -167,7 +168,7 @@
     return detected;
   }
 
-  ocrBtn.addEventListener('click', async () => {
+  async function runOCR() {
     if (!originalImage) return;
     if (!window.Tesseract) {
       setStatus('O módulo de OCR não carregou. Confira sua conexão e tente novamente.', 'warn');
@@ -204,7 +205,9 @@
     } finally {
       ocrBtn.disabled = false;
     }
-  });
+  }
+
+  ocrBtn.addEventListener('click', runOCR);
 
   angleBtn.addEventListener('click', () => {
     if (!originalImage) return;
